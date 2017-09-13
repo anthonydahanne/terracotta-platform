@@ -47,12 +47,12 @@ public class VoltronProxyInvocationHandlerTest {
   public void testNullsClientIdAnnotatedParams() throws Throwable {
 
 
-    final Set<Object[]> valuesSeen = new HashSet<Object[]>();
+    final Set<Object> valuesSeen = new HashSet<Object>();
     final SerializationCodec codec = new SerializationCodec() {
       @Override
-      public byte[] encode(final Class<?>[] type, final Object[] values) {
-        valuesSeen.add(values);
-        return super.encode(type, values);
+      public byte[] encode(final Class<?> type, final Object value) {
+        valuesSeen.add(value);
+        return super.encode(type, value);
       }
     };
     final EntityClientEndpoint<ProxyEntityMessage, ProxyEntityResponse> endpoint = mock(EntityClientEndpoint.class);
@@ -61,15 +61,15 @@ public class VoltronProxyInvocationHandlerTest {
     when(builder.message(Matchers.<EntityMessage>any())).thenReturn(builder);
     final InvokeFuture future = mock(InvokeFuture.class);
     when(builder.invoke()).thenReturn(future);
-    when(future.get()).thenReturn(ProxyEntityResponse.response(Void.TYPE, null));
+    when(future.get()).thenReturn(ProxyEntityResponse.messageResponse(Void.TYPE, null));
 
     Map<MethodDescriptor, Byte> methodMappings = invert(createMethodMappings(TestInterface.class));
-    VoltronProxyInvocationHandler handler = new VoltronProxyInvocationHandler(endpoint, Collections.<Class<?>>emptyList());
+    VoltronProxyInvocationHandler handler = new VoltronProxyInvocationHandler(endpoint, Collections.<Class<?>>emptyList(), codec);
     for (MethodDescriptor method : methodMappings.keySet()) {
       handler.invoke(null, method.getMethod(), new Object[] { "String", new Object() });
     }
-    for (Object[] objects : valuesSeen) {
-      assertNull(objects[1]);
+    for (Object objects : valuesSeen) {
+      assertNull(((Object[]) objects)[1]);
     }
   }
 

@@ -20,8 +20,6 @@ import org.terracotta.management.model.capabilities.Capability;
 import org.terracotta.management.model.capabilities.context.CapabilityContext;
 import org.terracotta.management.model.capabilities.descriptors.Descriptor;
 import org.terracotta.management.model.context.Context;
-import org.terracotta.management.model.stats.Statistic;
-import org.terracotta.management.registry.action.ExposedObject;
 
 import java.util.Collection;
 import java.util.Map;
@@ -47,7 +45,7 @@ public interface ManagementProvider<T> {
    * @param managedObject the object to manage.
    * @return true if the object has been registered
    */
-  ExposedObject<T> register(T managedObject);
+  void register(T managedObject);
 
   /**
    * Unregister a managed object from the current provider.
@@ -55,14 +53,14 @@ public interface ManagementProvider<T> {
    * @param managedObject the managed object.
    * @return true if the object has been registered
    */
-  ExposedObject<T> unregister(T managedObject);
+  void unregister(T managedObject);
 
   /**
    * Get the set of capability descriptors the current provider provides.
    *
    * @return the set of capability descriptors.
    */
-  Collection<Descriptor> getDescriptors();
+  Collection<? extends Descriptor> getDescriptors();
 
   /**
    * Get the context that the provided capabilities need to run.
@@ -85,11 +83,10 @@ public interface ManagementProvider<T> {
    * Collect statistics, if the provider supports this.
    *
    * @param context        the context.
-   * @param statisticNames the statistic names to collect.
-   * @param since          The unix time in ms from where to return the statistics for statistics based on samples.
-   * @return the statistic map, the key being the statistic namesø.
+   * @param statisticNames the statistic names to collect. If empty, collect ALL statistics
+   * @return the statistic map, the key being the statistic names.
    */
-  Map<String, Statistic<?, ?>> collectStatistics(Context context, Collection<String> statisticNames, long since);
+  Map<String, Number> collectStatistics(Context context, Collection<String> statisticNames);
 
   /**
    * Call an action, if the provider supports this.
@@ -124,4 +121,8 @@ public interface ManagementProvider<T> {
    * Closes the management provider.
    */
   void close();
+
+  Collection<ExposedObject<T>> getExposedObjects();
+
+  ExposedObject<T> findExposedObject(T managedObject);
 }

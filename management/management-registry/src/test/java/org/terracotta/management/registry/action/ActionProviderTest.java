@@ -53,7 +53,7 @@ public class ActionProviderTest {
     managementProvider.register(new MyObject("myCacheManagerName", "myCacheName1"));
     managementProvider.register(new MyObject("myCacheManagerName", "myCacheName2"));
 
-    Collection<Descriptor> descriptors = managementProvider.getDescriptors();
+    Collection<? extends Descriptor> descriptors = managementProvider.getDescriptors();
     assertThat(descriptors.size(), is(1));
     assertThat(descriptors.iterator().next(), is(instanceOf(CallDescriptor.class)));
     assertThat((CallDescriptor) descriptors.iterator().next(), equalTo(
@@ -82,7 +82,7 @@ public class ActionProviderTest {
   @Test
   public void testCollectStatistics() throws Exception {
     try {
-      managementProvider.collectStatistics(null, null, System.currentTimeMillis());
+      managementProvider.collectStatistics(null, null);
       fail("expected UnsupportedOperationException");
     } catch (UnsupportedOperationException uoe) {
       // expected

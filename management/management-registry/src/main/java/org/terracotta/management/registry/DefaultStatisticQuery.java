@@ -17,7 +17,6 @@ package org.terracotta.management.registry;
 
 import org.terracotta.management.model.context.Context;
 import org.terracotta.management.model.stats.ContextualStatistics;
-import org.terracotta.management.model.stats.Statistic;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -36,16 +35,14 @@ public class DefaultStatisticQuery implements StatisticQuery {
   private final String capabilityName;
   private final Collection<String> statisticNames;
   private final Collection<Context> contexts;
-  private final long since;
 
-  public DefaultStatisticQuery(CapabilityManagementSupport capabilityManagement, String capabilityName, Collection<String> statisticNames, Collection<Context> contexts, long since) {
+  public DefaultStatisticQuery(CapabilityManagementSupport capabilityManagement, String capabilityName, Collection<String> statisticNames, Collection<Context> contexts) {
     this.capabilityManagement = capabilityManagement;
     this.capabilityName = capabilityName;
     this.statisticNames = Collections.unmodifiableSet(new LinkedHashSet<String>(statisticNames));
-    this.since = since;
     this.contexts = Collections.unmodifiableCollection(new ArrayList<Context>(contexts));
 
-    if(contexts.isEmpty()) {
+    if (contexts.isEmpty()) {
       throw new IllegalArgumentException("You did not specify any context to extract the statistics from");
     }
   }
@@ -66,20 +63,20 @@ public class DefaultStatisticQuery implements StatisticQuery {
   }
 
   @Override
-  public long getSince() {
-    return since;
-  }
-
-  @Override
   public ResultSet<ContextualStatistics> execute() {
     Map<Context, ContextualStatistics> contextualStatistics = new LinkedHashMap<Context, ContextualStatistics>(contexts.size());
     Collection<ManagementProvider<?>> managementProviders = capabilityManagement.getManagementProvidersByCapability(capabilityName);
 
     for (Context context : contexts) {
-      Map<String, Statistic<?, ?>> statistics = new HashMap<String, Statistic<?, ?>>();
+      Map<String, Number> statistics = new HashMap<String, Number>();
       for (ManagementProvider<?> managementProvider : managementProviders) {
         if (managementProvider.supports(context)) {
-          statistics.putAll(managementProvider.collectStatistics(context, statisticNames, since));
+          for (Map.Entry<String, Number> entry : managementProvider.collectStatistics(context, statisticNames).entrySet()) {
+            if (entry.getValue() != null && (entry.getValue().doubleValue() >= 0 || Double.isNaN(entry.getValue().doubleValue()))) {
+              statistics.put(entry.getKey(), entry.getValue());
+            }
+          }
+
         }
       }
       contextualStatistics.put(context, new ContextualStatistics(capabilityName, context, statistics));

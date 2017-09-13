@@ -17,46 +17,46 @@ package org.terracotta.management.registry.collect;
 
 import org.terracotta.management.model.capabilities.descriptors.Descriptor;
 import org.terracotta.management.model.context.Context;
+import org.terracotta.management.registry.Named;
 import org.terracotta.management.registry.action.AbstractActionManagementProvider;
 import org.terracotta.management.registry.action.Exposed;
-import org.terracotta.management.registry.action.ExposedObject;
-import org.terracotta.management.registry.action.Named;
+import org.terracotta.management.registry.ExposedObject;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author Mathieu Carbou
  */
 @Named("StatisticCollectorCapability")
-public class StatisticCollectorProvider<T extends StatisticCollector> extends AbstractActionManagementProvider<T> {
+public class StatisticCollectorProvider extends AbstractActionManagementProvider<StatisticCollector> {
 
   private final Context context;
 
-  public StatisticCollectorProvider(Class<? extends T> type, Context context) {
-    super(type);
+  public StatisticCollectorProvider(Context context) {
+    super(StatisticCollector.class);
     this.context = context;
   }
 
   @Override
-  protected ExposedObject<T> wrap(T managedObject) {
-    return new ExposedStatisticCollector<T>(managedObject, context);
+  protected ExposedObject<StatisticCollector> wrap(StatisticCollector managedObject) {
+    return new ExposedStatisticCollector(managedObject, context);
   }
 
-  public static class ExposedStatisticCollector<T extends StatisticCollector> implements ExposedObject<T> {
+  @Override
+  protected void dispose(ExposedObject<StatisticCollector> exposedObject) {
+    exposedObject.getTarget().stopStatisticCollector();
+  }
 
-    private final T collectorService;
+  public static class ExposedStatisticCollector implements ExposedObject<StatisticCollector> {
+
+    private final StatisticCollector collectorService;
     private final Context context;
 
-    public ExposedStatisticCollector(T collectorService, Context context) {
+    public ExposedStatisticCollector(StatisticCollector collectorService, Context context) {
       this.collectorService = collectorService;
       this.context = context;
-    }
-
-    @Exposed
-    public void updateCollectedStatistics(@Named("capabilityName") String capabilityName,
-                                          @Named("statisticNames") Collection<String> statisticNames) {
-      collectorService.updateCollectedStatistics(capabilityName, statisticNames);
     }
 
     @Exposed
@@ -65,12 +65,18 @@ public class StatisticCollectorProvider<T extends StatisticCollector> extends Ab
     }
 
     @Exposed
-    public void startStatisticCollector() {
-      collectorService.startStatisticCollector();
+    public boolean isRunning() {
+      return collectorService.isRunning();
+    }
+    
+    @Exposed
+    public void startStatisticCollector(@Named("interval") long interval,
+                                        @Named("unit") TimeUnit unit) {
+      collectorService.startStatisticCollector(interval, unit);
     }
 
     @Override
-    public T getTarget() {
+    public StatisticCollector getTarget() {
       return collectorService;
     }
 

@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.terracotta.connection.Connection;
 import org.terracotta.connection.entity.EntityRef;
+import org.terracotta.exception.ConnectionClosedException;
 import org.terracotta.exception.EntityNotFoundException;
 import org.terracotta.exception.EntityNotProvidedException;
 import org.terracotta.exception.EntityVersionMismatchException;
@@ -53,8 +54,8 @@ public class HealthCheckerFactory {
    */
   public static TimeoutManager startHealthChecker(Connection connection, int probeFrequencyPerMinute, long probeTimeoutInMillis) {
     try {
-      EntityRef<HealthCheck, Properties> check = connection.getEntityRef(HealthCheck.class, HealthCheck.VERSION, NAME);
-      HealthCheck hc = check.fetchEntity();
+      EntityRef<HealthCheck, Properties, Object> check = connection.getEntityRef(HealthCheck.class, HealthCheck.VERSION, NAME);
+      HealthCheck hc = check.fetchEntity(null);
       if (probeFrequencyPerMinute < 1 || probeFrequencyPerMinute > 120) {
         throw new IllegalArgumentException("probe frequency must be greater than zero and less than 120");
       }
@@ -164,7 +165,7 @@ public class HealthCheckerFactory {
         root.close();
       } catch (IOException ioe) {
 //  anything todo here?
-      } catch (IllegalStateException state) {
+      } catch (ConnectionClosedException state) {
 //  already closed        
       }
       fireTimeoutListeners();

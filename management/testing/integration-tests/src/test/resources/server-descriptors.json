@@ -1,0 +1,158 @@
+[
+  {
+    "capabilityContext": {
+      "attributes": [
+        {
+          "name": "consumerId",
+          "required": true
+        },
+        {
+          "name": "type",
+          "required": true
+        },
+        {
+          "name": "alias",
+          "required": true
+        }
+      ]
+    },
+    "descriptors": [
+      {
+        "consumerId": "4",
+        "alias": "0@127.0.0.1:pet-clinic:<uuid>",
+        "type": "ClientState",
+        "attached": true
+      },
+      {
+        "consumerId": "4",
+        "alias": "0@127.0.0.1:pet-clinic:<uuid>",
+        "type": "ClientState",
+        "attached": true
+      }
+    ],
+    "name": "ClientStateSettings"
+  },
+  {
+    "capabilityContext": {
+      "attributes": [
+        {
+          "name": "consumerId",
+          "required": true
+        },
+        {
+          "name": "cacheName",
+          "required": true
+        }
+      ]
+    },
+    "descriptors": [
+      {
+        "name": "clear",
+        "parameters": [],
+        "returnType": "void"
+      },
+      {
+        "name": "get",
+        "parameters": [
+          {
+            "name": "key",
+            "type": "java.lang.String"
+          }
+        ],
+        "returnType": "java.lang.String"
+      },
+      {
+        "name": "put",
+        "parameters": [
+          {
+            "name": "key",
+            "type": "java.lang.String"
+          },
+          {
+            "name": "value",
+            "type": "java.lang.String"
+          }
+        ],
+        "returnType": "void"
+      },
+      {
+        "name": "size",
+        "parameters": [],
+        "returnType": "int"
+      }
+    ],
+    "name": "ServerCacheCalls"
+  },
+  {
+    "capabilityContext": {
+      "attributes": [
+        {
+          "name": "consumerId",
+          "required": true
+        },
+        {
+          "name": "type",
+          "required": true
+        },
+        {
+          "name": "alias",
+          "required": true
+        }
+      ]
+    },
+    "descriptors": [
+      {
+        "consumerId": "4",
+        "alias": "pet-clinic/clients",
+        "type": "ServerCache",
+        "size": 0
+      },
+      {
+        "type": "ServerCacheSettings",
+        "time": 0
+      }
+    ],
+    "name": "ServerCacheSettings"
+  },
+  {
+    "capabilityContext": {
+      "attributes": [
+        {
+          "name": "consumerId",
+          "required": true
+        },
+        {
+          "name": "type",
+          "required": true
+        },
+        {
+          "name": "alias",
+          "required": true
+        }
+      ]
+    },
+    "descriptors": [
+      {
+        "name": "Cluster:ClearCount",
+        "type": "COUNTER"
+      },
+      {
+        "name": "Cluster:HitCount",
+        "type": "COUNTER"
+      },
+      {
+        "name": "Cluster:MissCount",
+        "type": "COUNTER"
+      },
+      {
+        "name": "Cluster:PutCount",
+        "type": "COUNTER"
+      },
+      {
+        "name": "ServerCache:Size",
+        "type": "SIZE"
+      }
+    ],
+    "name": "ServerCacheStatistics"
+  }
+]

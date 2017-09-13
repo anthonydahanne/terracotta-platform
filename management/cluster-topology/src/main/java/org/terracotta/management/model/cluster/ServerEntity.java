@@ -18,36 +18,26 @@ package org.terracotta.management.model.cluster;
 import org.terracotta.management.model.context.Context;
 
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * @author Mathieu Carbou
  */
-public final class ServerEntity extends AbstractNode<Server> {
+public final class ServerEntity extends AbstractManageableNode<Server> {
 
   private static final long serialVersionUID = 3;
 
   public static final String KEY = "entityId";
   public static final String TYPE_KEY = "entityType";
   public static final String NAME_KEY = "entityName";
+  public static final String CONSUMER_ID = "consumerId";
 
   private final ServerEntityIdentifier identifier;
-  private ManagementRegistry managementRegistry;
   private long consumerId;
 
   // matches management registry config, or entity id, or service type
   private ServerEntity(ServerEntityIdentifier identifier) {
     super(identifier.getId());
     this.identifier = identifier;
-  }
-
-  public Optional<ManagementRegistry> getManagementRegistry() {
-    return Optional.ofNullable(managementRegistry);
-  }
-
-  public ServerEntity setManagementRegistry(ManagementRegistry managementRegistry) {
-    this.managementRegistry = managementRegistry;
-    return this;
   }
 
   public long getConsumerId() {
@@ -77,9 +67,13 @@ public final class ServerEntity extends AbstractNode<Server> {
 
   @Override
   public Context getContext() {
-    return super.getContext()
+    Context context = super.getContext()
         .with(NAME_KEY, getName())
         .with(TYPE_KEY, getType());
+    if (consumerId > 0) {
+      context = context.with(CONSUMER_ID, String.valueOf(consumerId));
+    }
+    return context;
   }
 
   @Override
@@ -115,16 +109,15 @@ public final class ServerEntity extends AbstractNode<Server> {
 
     ServerEntity that = (ServerEntity) o;
 
-    if (!identifier.equals(that.identifier)) return false;
-    return managementRegistry != null ? managementRegistry.equals(that.managementRegistry) : that.managementRegistry == null;
-
+    if (consumerId != that.consumerId) return false;
+    return identifier.equals(that.identifier);
   }
 
   @Override
   public int hashCode() {
     int result = super.hashCode();
     result = 31 * result + identifier.hashCode();
-    result = 31 * result + (managementRegistry != null ? managementRegistry.hashCode() : 0);
+    result = 31 * result + (int) (consumerId ^ (consumerId >>> 32));
     return result;
   }
 
@@ -134,7 +127,7 @@ public final class ServerEntity extends AbstractNode<Server> {
     map.put("type", getType());
     map.put("name", getName());
     map.put("consumerId", getConsumerId());
-    map.put("managementRegistry", managementRegistry == null ? null : managementRegistry.toMap());
+    map.put("managementRegistry", getManagementRegistry().map(ManagementRegistry::toMap).orElse(null));
     return map;
   }
 

@@ -15,13 +15,13 @@
  */
 package org.terracotta.management.model.cluster;
 
-import org.terracotta.management.model.Objects;
 import org.terracotta.management.model.context.Context;
 
 import java.time.Clock;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -35,7 +35,7 @@ public final class Server extends AbstractNode<Stripe> {
   public static final String KEY = "serverId";
   public static final String NAME_KEY = "serverName";
 
-  private final Map<String, ServerEntity> serverEntities = new HashMap<>();
+  private final Map<String, ServerEntity> serverEntities = new TreeMap<>();
   private final String serverName; // matches xml config
 
   private String hostName; // matches xml config
@@ -167,7 +167,7 @@ public final class Server extends AbstractNode<Stripe> {
   }
 
   public Server setState(State state) {
-    this.state = state;
+    this.state = Objects.requireNonNull(state);
     return this;
   }
 
@@ -217,19 +217,28 @@ public final class Server extends AbstractNode<Stripe> {
 
   public final Optional<ServerEntity> getServerEntity(Context context) {
     String id = context.get(ServerEntity.KEY);
-    String type = context.get(ServerEntity.TYPE_KEY);
-    String name = context.get(ServerEntity.NAME_KEY);
     if (id != null) {
       return getServerEntity(id);
     }
+    String type = context.get(ServerEntity.TYPE_KEY);
+    String name = context.get(ServerEntity.NAME_KEY);
     if (type != null && name != null) {
       return getServerEntity(name, type);
+    }
+    String consumerId = context.get(ServerEntity.CONSUMER_ID);
+    if (consumerId != null) {
+      long cid = Long.parseLong(consumerId);
+      return serverEntityStream().filter(serverEntity -> serverEntity.getConsumerId() == cid).findFirst();
     }
     return Optional.empty();
   }
 
   public final Optional<ServerEntity> getServerEntity(ServerEntityIdentifier serverEntityIdentifier) {
     return getServerEntity(serverEntityIdentifier.getId());
+  }
+
+  public final Optional<ServerEntity> getServerEntity(long consumerId) {
+    return serverEntityStream().filter(serverEntity -> serverEntity.getConsumerId() == consumerId).findFirst();
   }
 
   public final Optional<ServerEntity> getServerEntity(String id) {
@@ -279,7 +288,7 @@ public final class Server extends AbstractNode<Stripe> {
     if (startTime != server.startTime) return false;
     if (activateTime != server.activateTime) return false;
     if (!serverEntities.equals(server.serverEntities)) return false;
-    if (serverName != null ? !serverName.equals(server.serverName) : server.serverName != null) return false;
+    if (!serverName.equals(server.serverName)) return false;
     if (hostName != null ? !hostName.equals(server.hostName) : server.hostName != null) return false;
     if (hostAddress != null ? !hostAddress.equals(server.hostAddress) : server.hostAddress != null) return false;
     if (bindAddress != null ? !bindAddress.equals(server.bindAddress) : server.bindAddress != null) return false;
@@ -293,7 +302,7 @@ public final class Server extends AbstractNode<Stripe> {
   public int hashCode() {
     int result = super.hashCode();
     result = 31 * result + serverEntities.hashCode();
-    result = 31 * result + (serverName != null ? serverName.hashCode() : 0);
+    result = 31 * result + serverName.hashCode();
     result = 31 * result + (hostName != null ? hostName.hashCode() : 0);
     result = 31 * result + (hostAddress != null ? hostAddress.hashCode() : 0);
     result = 31 * result + (bindAddress != null ? bindAddress.hashCode() : 0);
@@ -330,26 +339,66 @@ public final class Server extends AbstractNode<Stripe> {
     return new Server(serverName, serverName);
   }
 
+  /**
+   * Possibles transitions:
+   * <pre>
+   * STARTING ➡ UNINITIALIZED ➡ SYNCHRONIZING ➡ PASSIVE ➡ ACTIVE
+   *    ⬇                                         ⬆        ⬆
+   *     ----------------------------------------------------
+   * </pre>
+   */
   public enum State {
 
-    //  Currently the possible transitions for a server are:
-    //  UNINITIALIZED->SYNCHRONIZING->PASSIVE->ACTIVE
-    //  UNINITIALIZED->ACTIVE
+    /**
+     * When a server is not reachable, this will be the status used
+     */
+    UNREACHABLE,
 
-    UNINITIALIZED,
-    SYNCHRONIZING,
-    PASSIVE,
-    ACTIVE,
+    /**
+     * Server is bootstrapping
+     */
+    STARTING("STARTING", "START_STATE", "START-STATE"),
 
+    /**
+     * A fresh server
+     */
+    UNINITIALIZED("UNINITIALIZED", "PASSIVE-UNINITIALIZED"),
+
+    /**
+     * Passive server is synchronizing with active server
+     */
+    SYNCHRONIZING("SYNCHRONIZING", "PASSIVE-SYNCING"),
+
+    /**
+     * Passive server is up and ready to replicate
+     */
+    PASSIVE("PASSIVE", "PASSIVE-STANDBY"),
+
+    /**
+     * Active server is ready to receive clients
+     */
+    ACTIVE("ACTIVE", "ACTIVE-COORDINATOR"),
+
+    /**
+     * Status returned when parsing failed
+     */
     UNKNOWN;
 
-    public static State parse(String state) {
-      if (state == null) {
+    private final String[] mappings;
+
+    State(String... mappings) {
+      this.mappings = mappings == null ? new String[0] : mappings;
+    }
+
+    public static State parse(String value) {
+      if (value == null) {
         return UNKNOWN;
       }
       for (State serverState : State.values()) {
-        if (serverState.name().equalsIgnoreCase(state)) {
-          return serverState;
+        for (String mapping : serverState.mappings) {
+          if (mapping.equalsIgnoreCase(value)) {
+            return serverState;
+          }
         }
       }
       return UNKNOWN;

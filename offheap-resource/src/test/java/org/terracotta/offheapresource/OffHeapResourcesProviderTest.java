@@ -15,15 +15,17 @@
  */
 package org.terracotta.offheapresource;
 
-import java.math.BigInteger;
-import java.util.Collections;
 import org.junit.Test;
-import org.terracotta.entity.ServiceProvider;
-import org.terracotta.entity.ServiceProviderConfiguration;
-
 import org.terracotta.offheapresource.config.MemoryUnit;
+import org.terracotta.offheapresource.config.OffheapResourcesType;
 import org.terracotta.offheapresource.config.ResourceType;
+import org.terracotta.statistics.StatisticsManager;
+import org.terracotta.statistics.ValueStatistic;
 
+import java.math.BigInteger;
+
+import static java.util.Collections.singletonList;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
@@ -35,15 +37,23 @@ import static org.mockito.Mockito.when;
 public class OffHeapResourcesProviderTest {
 
   @Test
-  public void testInitializeWithWrongConfig() {
-    OffHeapResourcesProvider provider = new OffHeapResourcesProvider();
+  public void testObserverExposed() {
+    ResourceType resourceConfig = mock(ResourceType.class);
+    when(resourceConfig.getName()).thenReturn("foo");
+    when(resourceConfig.getUnit()).thenReturn(MemoryUnit.MB);
+    when(resourceConfig.getValue()).thenReturn(BigInteger.valueOf(2));
 
-    assertThat(provider.initialize(new ServiceProviderConfiguration() {
-      @Override
-      public Class<? extends ServiceProvider> getServiceProviderType() {
-        return OffHeapResourcesProvider.class;
-      }
-    }, null), is(false));
+    OffheapResourcesType configuration = mock(OffheapResourcesType.class);
+    when(configuration.getResource()).thenReturn(singletonList(resourceConfig));
+
+    OffHeapResourcesProvider provider = new OffHeapResourcesProvider(configuration);
+
+    OffHeapResource offHeapResource = provider.getOffHeapResource(OffHeapResourceIdentifier.identifier("foo"));
+    assertThat(offHeapResource.available(), equalTo(2L * 1024 * 1024));
+
+    assertThat(StatisticsManager.nodeFor(offHeapResource).getChildren().size(), equalTo(1));
+    ValueStatistic valueStatistic = (ValueStatistic) StatisticsManager.nodeFor(offHeapResource).getChildren().iterator().next().getContext().attributes().get("this");
+    assertThat(valueStatistic.value(), equalTo(0L));
   }
 
   @Test
@@ -53,34 +63,13 @@ public class OffHeapResourcesProviderTest {
     when(resourceConfig.getUnit()).thenReturn(MemoryUnit.MB);
     when(resourceConfig.getValue()).thenReturn(BigInteger.valueOf(2));
 
-    OffHeapResourcesConfiguration config = mock(OffHeapResourcesConfiguration.class);
-    when(config.getResources()).thenReturn(Collections.singleton(resourceConfig));
+    OffheapResourcesType configuration = mock(OffheapResourcesType.class);
+    when(configuration.getResource()).thenReturn(singletonList(resourceConfig));
 
-    OffHeapResourcesProvider provider = new OffHeapResourcesProvider();
-    provider.initialize(config, null);
+    OffHeapResourcesProvider provider = new OffHeapResourcesProvider(configuration);
 
-    assertThat(provider.getService(42L, OffHeapResourceIdentifier.identifier("foo")), notNullValue());
-    assertThat(provider.getService(42L, OffHeapResourceIdentifier.identifier("foo")).available(), is(2L * 1024 * 1024));
-  }
-
-  @Test
-  public void testDoubleInitialize() {
-    ResourceType resourceConfig = mock(ResourceType.class);
-    when(resourceConfig.getName()).thenReturn("foo");
-    when(resourceConfig.getUnit()).thenReturn(MemoryUnit.MB);
-    when(resourceConfig.getValue()).thenReturn(BigInteger.valueOf(2));
-
-    OffHeapResourcesConfiguration config = mock(OffHeapResourcesConfiguration.class);
-    when(config.getResources()).thenReturn(Collections.singleton(resourceConfig));
-
-    OffHeapResourcesProvider provider = new OffHeapResourcesProvider();
-    provider.initialize(config, null);
-    try {
-      provider.initialize(config, null);
-      fail("Expected IllegalStateException");
-    } catch (IllegalStateException e) {
-      //expected
-    }
+    assertThat(provider.getOffHeapResource(OffHeapResourceIdentifier.identifier("foo")), notNullValue());
+    assertThat(provider.getOffHeapResource(OffHeapResourceIdentifier.identifier("foo")).available(), is(2L * 1024 * 1024));
   }
 
   @Test
@@ -90,31 +79,14 @@ public class OffHeapResourcesProviderTest {
     when(resourceConfig.getUnit()).thenReturn(MemoryUnit.MB);
     when(resourceConfig.getValue()).thenReturn(BigInteger.valueOf(2));
 
-    OffHeapResourcesConfiguration config = mock(OffHeapResourcesConfiguration.class);
-    when(config.getResources()).thenReturn(Collections.singleton(resourceConfig));
+    OffheapResourcesType configuration = mock(OffheapResourcesType.class);
+    when(configuration.getResource()).thenReturn(singletonList(resourceConfig));
 
-    OffHeapResourcesProvider provider = new OffHeapResourcesProvider();
-    provider.initialize(config, null);
+    OffHeapResourcesProvider provider = new OffHeapResourcesProvider(configuration);
 
-    assertThat(provider.getService(42L, OffHeapResourceIdentifier.identifier("bar")), nullValue());
+    assertThat(provider.getOffHeapResource(OffHeapResourceIdentifier.identifier("bar")), nullValue());
   }
 
-
-  @Test
-  public void testNullReturnAfterClear() {
-    ResourceType resourceConfig = mock(ResourceType.class);
-    when(resourceConfig.getName()).thenReturn("foo");
-    when(resourceConfig.getUnit()).thenReturn(MemoryUnit.MB);
-    when(resourceConfig.getValue()).thenReturn(BigInteger.valueOf(2));
-
-    OffHeapResourcesConfiguration config = mock(OffHeapResourcesConfiguration.class);
-    when(config.getResources()).thenReturn(Collections.singleton(resourceConfig));
-
-    OffHeapResourcesProvider provider = new OffHeapResourcesProvider();
-    provider.initialize(config, null);
-    provider.clear();
-    assertThat(provider.getService(42L, OffHeapResourceIdentifier.identifier("foo")), nullValue());
-  }
 
   @Test
   public void testResourceTooBig() throws Exception {
@@ -123,17 +95,14 @@ public class OffHeapResourcesProviderTest {
     when(resourceConfig.getUnit()).thenReturn(MemoryUnit.B);
     when(resourceConfig.getValue()).thenReturn(BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE));
 
-    OffHeapResourcesConfiguration config = mock(OffHeapResourcesConfiguration.class);
-    when(config.getResources()).thenReturn(Collections.singleton(resourceConfig));
+    OffheapResourcesType configuration = mock(OffheapResourcesType.class);
+    when(configuration.getResource()).thenReturn(singletonList(resourceConfig));
 
-    OffHeapResourcesProvider provider = new OffHeapResourcesProvider();
     try {
-      provider.initialize(config, null);
-      fail();
+      new OffHeapResourcesProvider(configuration);
+      fail("Should have failed with exception");
     } catch (ArithmeticException e) {
       // expected
-    } finally {
-      provider.clear();
     }
   }
 
@@ -144,14 +113,9 @@ public class OffHeapResourcesProviderTest {
     when(resourceConfig.getUnit()).thenReturn(MemoryUnit.B);
     when(resourceConfig.getValue()).thenReturn(BigInteger.valueOf(Long.MAX_VALUE));
 
-    OffHeapResourcesConfiguration config = mock(OffHeapResourcesConfiguration.class);
-    when(config.getResources()).thenReturn(Collections.singleton(resourceConfig));
+    OffheapResourcesType configuration = mock(OffheapResourcesType.class);
+    when(configuration.getResource()).thenReturn(singletonList(resourceConfig));
 
-    OffHeapResourcesProvider provider = new OffHeapResourcesProvider();
-    try {
-      provider.initialize(config, null);
-    } finally {
-      provider.clear();
-    }
+    OffHeapResourcesProvider provider = new OffHeapResourcesProvider(configuration);
   }
 }

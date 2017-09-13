@@ -20,7 +20,7 @@ import org.terracotta.voltron.proxy.MessageListener;
 /**
  * @author Alex Snaps
  */
-public interface ServerMessageAware<T> {
+public interface ServerMessageAware {
 
-  void registerListener(MessageListener<T> listener);
+  <T> void registerMessageListener(Class<T> type, MessageListener<T> listener);
 }

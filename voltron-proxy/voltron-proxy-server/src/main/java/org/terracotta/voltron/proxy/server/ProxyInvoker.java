@@ -15,140 +15,150 @@
  */
 package org.terracotta.voltron.proxy.server;
 
+import org.terracotta.entity.ActiveInvokeContext;
 import org.terracotta.entity.ClientCommunicator;
 import org.terracotta.entity.ClientDescriptor;
+import org.terracotta.entity.EntityUserException;
+import org.terracotta.entity.InvokeContext;
 import org.terracotta.entity.MessageCodecException;
-import org.terracotta.voltron.proxy.MessageListener;
 import org.terracotta.voltron.proxy.ProxyEntityMessage;
 import org.terracotta.voltron.proxy.ProxyEntityResponse;
 
 import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 
 /**
  * @author Alex Snaps
  */
-public class ProxyInvoker<T> {
+class ProxyInvoker<T> implements MessageFiring {
 
   private final T target;
-  private final Set<Class<?>> messageTypes;
-  private final ClientCommunicator clientCommunicator;
   private final Set<ClientDescriptor> clients = Collections.synchronizedSet(new HashSet<ClientDescriptor>());
+  private final ThreadLocal<InvocationContext> invocationContext = new ThreadLocal<>();
 
-  private final ThreadLocal<InvocationContext> invocationContext = new ThreadLocal<InvocationContext>();
+  private Set<Class<?>> messageTypes;
+  private ClientCommunicator clientCommunicator;
 
-  public ProxyInvoker(T target) {
-    this(target, null);
-  }
-
-  public ProxyInvoker(T target, ClientCommunicator clientCommunicator, Class<?> ... messageTypes) {
+  ProxyInvoker(T target) {
     this.target = target;
-    this.messageTypes = new HashSet<Class<?>>();
-    for (Class eventType : messageTypes) {
-      this.messageTypes.add(eventType);
-      if(target instanceof MessageFiring) {
-        ((MessageFiring)target).registerListener(eventType, new MessageListener<Object>() {
-          @Override
-          public void onMessage(final Object message) {
-            fireMessage(message);
-          }
-        });
+  }
+
+  ProxyEntityResponse invoke(ActiveInvokeContext context, final ProxyEntityMessage message) {
+    ClientDescriptor clientDescriptor = context.getClientDescriptor();
+    try {
+      invocationContext.set(new InvocationContext(clientDescriptor));
+      return ProxyEntityResponse.response(message.getType(), message.messageType(), message.invoke(target, clientDescriptor));
+    } catch (IllegalAccessException e) {
+      throw new IllegalArgumentException(e);
+    } catch (InvocationTargetException e) {
+      Throwable targetException = e.getTargetException();
+      if (targetException instanceof Error) {
+        throw (Error) targetException;
       }
-    }
-    if (messageTypes.length != 0 && clientCommunicator == null) {
-      throw new IllegalArgumentException("Messages cannot be sent using a null ClientCommunicator");
-    } else {
-      this.clientCommunicator = clientCommunicator;
+      StringBuilder errorMessage = new StringBuilder("Entity: ").append(target.getClass().getName())
+          .append(": exception in user code: ")
+          .append(targetException.getClass().getName())
+          .append(": ")
+          .append(targetException.getMessage());
+      EntityUserException entityUserException = new EntityUserException(errorMessage.toString(), targetException);
+      return ProxyEntityResponse.error(entityUserException);
+    } finally {
+      invocationContext.remove();
     }
   }
 
-  public ProxyEntityResponse invoke(final ClientDescriptor clientDescriptor, final ProxyEntityMessage message) {
+  void invoke(final ProxyEntityMessage message) {
     try {
-      try {
-        invocationContext.set(new InvocationContext(clientDescriptor));
-        return ProxyEntityResponse.response(message.messageType(), message.invoke(target, clientDescriptor));
-      } finally {
-        invocationContext.remove();
-      }
+      message.invoke(target);
     } catch (IllegalAccessException e) {
       throw new IllegalArgumentException(e);
     } catch (InvocationTargetException e) {
       Throwable target = e.getTargetException();
-      if(target instanceof Error) {
+      if (target instanceof Error) {
         throw (Error) target;
       }
-      if(target instanceof RuntimeException) {
+      if (target instanceof RuntimeException) {
         throw (RuntimeException) target;
       }
       throw new RuntimeException(target.getMessage(), target);
     }
   }
 
-  public void fireMessage(Object message) {
-    final Class<?> type = message.getClass();
-    if(!messageTypes.contains(type)) {
+  @Override
+  public <T> void fireMessage(Class<T> type, T message, boolean echo) {
+    if (!messageTypes.contains(type)) {
       throw new IllegalArgumentException("Event type '" + type + "' isn't supported");
     }
-    Set<Future<Void>> futures = new HashSet<Future<Void>>();
     final InvocationContext invocationContext = this.invocationContext.get();
     final ClientDescriptor caller = invocationContext == null ? null : invocationContext.caller;
     for (ClientDescriptor client : clients) {
-      if (!client.equals(caller)) {
+      if (echo || !client.equals(caller)) {
         try {
-          futures.add(clientCommunicator.send(client, ProxyEntityResponse.response(type, message)));
+          clientCommunicator.sendNoResponse(client, ProxyEntityResponse.messageResponse(type, message));
         } catch (MessageCodecException ex) {
-          throw new RuntimeException(ex);
+          handleExceptionOnSend(ex);
         }
       }
-    }
-    boolean interrupted = false;
-    while(!futures.isEmpty()) {
-      for (Iterator<Future<Void>> iterator = futures.iterator(); iterator.hasNext(); ) {
-        final Future<Void> future = iterator.next();
-        try {
-          future.get();
-          iterator.remove();
-        } catch (InterruptedException e) {
-          interrupted = true;
-        } catch (ExecutionException e) {
-          iterator.remove();
-          e.printStackTrace();
-        }
-      }
-    }
-    if(interrupted) {
-      Thread.currentThread().interrupt();
     }
   }
 
-  public void fireAndForgetMessage(Object message, ClientDescriptor... clients) {
-    final Class<?> type = message.getClass();
-    if(!messageTypes.contains(type)) {
+  @Override
+  public <T> void fireMessage(Class<T> type, T message, ClientDescriptor[] clients) {
+    if (!messageTypes.contains(type)) {
       throw new IllegalArgumentException("Event type '" + type + "' isn't supported");
     }
     for (ClientDescriptor client : clients) {
       try {
-        clientCommunicator.sendNoResponse(client, ProxyEntityResponse.response(type, message));
+        clientCommunicator.sendNoResponse(client, ProxyEntityResponse.messageResponse(type, message));
       } catch (MessageCodecException ex) {
-        throw new RuntimeException(ex);
+        handleExceptionOnSend(ex);
       }
     }
   }
 
-  public void addClient(ClientDescriptor descriptor) {
+  void addClient(ClientDescriptor descriptor) {
     clients.add(descriptor);
   }
 
-  public void removeClient(ClientDescriptor descriptor) {
+  void removeClient(ClientDescriptor descriptor) {
     clients.remove(descriptor);
   }
 
-  private final class InvocationContext {
+  public Collection<ClientDescriptor> getClients() {
+    return new ArrayList<>(clients);
+  }
+
+  private void handleExceptionOnSend(MessageCodecException ex) {
+    throw new RuntimeException(ex);
+  }
+
+  ProxyInvoker<T> activateEvents(ClientCommunicator clientCommunicator, Class<?>[] messageTypes) {
+    if (messageTypes == null) {
+      messageTypes = new Class[0];
+    }
+    this.messageTypes = new HashSet<>(Arrays.asList(messageTypes));
+    if (target instanceof MessageFiringSupport) {
+      ((MessageFiringSupport) target).setMessageFiring(this);
+    }
+
+    for (Class eventType : messageTypes) {
+      this.messageTypes.add(eventType);
+
+    }
+    if (messageTypes.length != 0 && clientCommunicator == null) {
+      throw new IllegalArgumentException("Messages cannot be sent using a null ClientCommunicator");
+    } else {
+      this.clientCommunicator = clientCommunicator;
+    }
+    return this;
+  }
+
+  private static final class InvocationContext {
 
     private final ClientDescriptor caller;
 

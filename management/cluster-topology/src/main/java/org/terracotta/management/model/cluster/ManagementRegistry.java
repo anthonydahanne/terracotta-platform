@@ -16,13 +16,11 @@
 package org.terracotta.management.model.cluster;
 
 import org.terracotta.management.model.capabilities.Capability;
-import org.terracotta.management.model.capabilities.StatisticsCapability;
 import org.terracotta.management.model.capabilities.context.CapabilityContext;
 import org.terracotta.management.model.capabilities.descriptors.CallDescriptor;
 import org.terracotta.management.model.capabilities.descriptors.Descriptor;
 import org.terracotta.management.model.capabilities.descriptors.Settings;
 import org.terracotta.management.model.capabilities.descriptors.StatisticDescriptor;
-import org.terracotta.management.model.capabilities.descriptors.StatisticDescriptorCategory;
 import org.terracotta.management.model.context.ContextContainer;
 
 import java.io.Serializable;
@@ -105,7 +103,11 @@ public final class ManagementRegistry implements Serializable {
 
   @Override
   public String toString() {
-    return contextContainer.getValue();
+    final StringBuilder sb = new StringBuilder("ManagementRegistry{");
+    sb.append("contextContainer=").append(contextContainer);
+    sb.append(", capabilities=").append(capabilities.size());
+    sb.append('}');
+    return sb.toString();
   }
 
   public Map<String, Object> toMap() {
@@ -127,30 +129,12 @@ public final class ManagementRegistry implements Serializable {
         descriptorList.add(toMap((CallDescriptor) o));
       } else if (o instanceof StatisticDescriptor) {
         descriptorList.add(toMap((StatisticDescriptor) o));
-      } else if (o instanceof StatisticDescriptorCategory) {
-        descriptorList.add(toMap((StatisticDescriptorCategory) o));
       } else if (o instanceof Settings) {
         descriptorList.add(toMap((Settings) o));
       } else {
         descriptorList.add(toMap(o));
       }
     }
-
-    if (capability instanceof StatisticsCapability) {
-      map.put("properties", toMap(((StatisticsCapability) capability).getProperties()));
-    }
-    return map;
-  }
-
-  private static Map<String, Object> toMap(StatisticsCapability.Properties properties) {
-    Map<String, Object> map = new LinkedHashMap<>();
-    map.put("averageWindowDuration", properties.getAverageWindowDuration());
-    map.put("averageWindowUnit", properties.getAverageWindowUnit().name());
-    map.put("historyInterval", properties.getHistoryInterval());
-    map.put("historyIntervalUnit", properties.getHistoryIntervalUnit().name());
-    map.put("historySize", properties.getHistorySize());
-    map.put("timeToDisable", properties.getTimeToDisable());
-    map.put("timeToDisableUnit", properties.getTimeToDisableUnit().name());
     return map;
   }
 
@@ -164,14 +148,7 @@ public final class ManagementRegistry implements Serializable {
   private static Map<String, Object> toMap(StatisticDescriptor descriptor) {
     Map<String, Object> map = new LinkedHashMap<>();
     map.put("name", descriptor.getName());
-    map.put("type", descriptor.getType().name());
-    return map;
-  }
-
-  private static Map<String, Object> toMap(StatisticDescriptorCategory descriptor) {
-    Map<String, Object> map = new LinkedHashMap<>();
-    map.put("name", descriptor.getName());
-    map.put("statistics", descriptor.getStatistics().stream().map(ManagementRegistry::toMap).collect(Collectors.toList()));
+    map.put("type", descriptor.getType());
     return map;
   }
 

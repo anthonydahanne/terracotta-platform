@@ -16,12 +16,16 @@
 package org.terracotta.voltron.proxy.client;
 
 import org.terracotta.connection.entity.Entity;
+import org.terracotta.entity.EndpointDelegate;
 import org.terracotta.entity.EntityClientEndpoint;
+import org.terracotta.entity.EntityResponse;
 import org.terracotta.entity.InvocationBuilder;
 import org.terracotta.entity.InvokeFuture;
 import org.terracotta.exception.EntityException;
-import org.terracotta.voltron.proxy.Async;
+import org.terracotta.entity.EntityUserException;
+import org.terracotta.voltron.proxy.Codec;
 import org.terracotta.voltron.proxy.MessageListener;
+import org.terracotta.voltron.proxy.MessageType;
 import org.terracotta.voltron.proxy.MethodDescriptor;
 import org.terracotta.voltron.proxy.ProxyEntityMessage;
 import org.terracotta.voltron.proxy.ProxyEntityResponse;
@@ -38,21 +42,20 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.terracotta.voltron.proxy.Async.Ack.NONE;
-import static org.terracotta.voltron.proxy.Async.Ack.RECEIVED;
-
 /**
  * @author Alex Snaps
  */
 class VoltronProxyInvocationHandler implements InvocationHandler {
 
   private static final Method close;
-  private static final Method registerListener;
+  private static final Method registerMessageListener;
+  private static final Method setEndpointListener;
 
   static {
     try {
       close = Entity.class.getDeclaredMethod("close");
-      registerListener = ServerMessageAware.class.getDeclaredMethod("registerListener", MessageListener.class);
+      registerMessageListener = ServerMessageAware.class.getDeclaredMethod("registerMessageListener", Class.class, MessageListener.class);
+      setEndpointListener = EndpointListenerAware.class.getDeclaredMethod("setEndpointListener", EndpointListener.class);
     } catch (NoSuchMethodException e) {
       throw new AssertionError("Someone changed some method signature here!!!");
     }
@@ -61,40 +64,78 @@ class VoltronProxyInvocationHandler implements InvocationHandler {
   private final EntityClientEndpoint<ProxyEntityMessage, ProxyEntityResponse> entityClientEndpoint;
   private final ConcurrentMap<Class<?>, CopyOnWriteArrayList<MessageListener>> listeners;
 
-  public VoltronProxyInvocationHandler(final EntityClientEndpoint<ProxyEntityMessage, ProxyEntityResponse> entityClientEndpoint, Collection<Class<?>> events) {
+  private volatile EndpointListener endpointListener;
+
+  VoltronProxyInvocationHandler(final EntityClientEndpoint<ProxyEntityMessage, ProxyEntityResponse> entityClientEndpoint, Collection<Class<?>> events, final Codec codec) {
     this.entityClientEndpoint = entityClientEndpoint;
     this.listeners = new ConcurrentHashMap<Class<?>, CopyOnWriteArrayList<MessageListener>>();
     if (events.size() > 0) {
       for (Class<?> aClass : events) {
         listeners.put(aClass, new CopyOnWriteArrayList<MessageListener>());
       }
-      entityClientEndpoint.setDelegate(new ProxyEndpointDelegate(listeners));
+
+      entityClientEndpoint.setDelegate(new EndpointDelegate<ProxyEntityResponse>() {
+
+        @SuppressWarnings("unchecked")
+        @Override
+        public void handleMessage(ProxyEntityResponse response) {
+          final Class<?> aClass = response.getResponseType();
+          for (MessageListener messageListener : listeners.get(aClass)) {
+            messageListener.onMessage(response.getResponse());
+          }
+        }
+
+        @Override
+        public byte[] createExtendedReconnectData() {
+          if (endpointListener == null) {
+            return null;
+          } else {
+            Object state = endpointListener.onReconnect();
+            if (state == null) {
+              return null;
+            }
+            return codec.encode(state.getClass(), state);
+          }
+        }
+
+        @Override
+        public void didDisconnectUnexpectedly() {
+          if (endpointListener != null) {
+            endpointListener.onDisconnectUnexpectedly();
+          }
+        }
+      });
     }
   }
 
   @Override
   public Object invoke(final Object proxy, final Method method, final Object[] args) throws Throwable {
 
-    if(close.equals(method)) {
+    if (close.equals(method)) {
       entityClientEndpoint.close();
       return null;
-    } else if(registerListener.equals(method)) {
-      final MessageListener arg = (MessageListener) args[0];
-      Class<?> eventType = getMessageListenerEventType(arg);
+
+    } else if (registerMessageListener.equals(method)) {
+      final Class<?> eventType = (Class<?>) args[0];
+      final MessageListener arg = (MessageListener) args[1];
       final CopyOnWriteArrayList<MessageListener> messageListeners = listeners.get(eventType);
-      if(messageListeners == null) {
+      if (messageListeners == null) {
         throw new IllegalArgumentException("Event type '" + eventType + "' isn't supported");
       }
       messageListeners.add(arg);
+      return null;
+
+    } else if (setEndpointListener.equals(method)) {
+      this.endpointListener = (EndpointListener) args[0];
       return null;
     }
 
     final MethodDescriptor methodDescriptor = MethodDescriptor.of(method);
 
     final InvocationBuilder<ProxyEntityMessage, ProxyEntityResponse> builder = entityClientEndpoint.beginInvoke()
-            .message(new ProxyEntityMessage(methodDescriptor, args));
+        .message(new ProxyEntityMessage(methodDescriptor, args, MessageType.MESSAGE));
 
-    if(methodDescriptor.isAsync()) {
+    if (methodDescriptor.isAsync()) {
       switch (methodDescriptor.getAck()) {
         case NONE:
           break;
@@ -107,20 +148,18 @@ class VoltronProxyInvocationHandler implements InvocationHandler {
       return new ProxiedInvokeFuture(builder.invoke());
 
     } else {
-      return builder.invoke().get().getResponse();
+      return getResponse(builder.invoke().get());
     }
   }
 
-  private static Class<?> getMessageListenerEventType(MessageListener from) {
-    for (Method m: from.getClass().getMethods()) {
-      if (m.getName().equals("onMessage") && !m.isBridge()) {
-        Class<?>[] params = m.getParameterTypes();
-        if (params.length == 1 && !m.getParameterTypes()[0].isPrimitive()) {
-          return m.getParameterTypes()[0];
-        }
-      }
+  private static Object getResponse(ProxyEntityResponse proxyEntityResponse) throws EntityUserException {
+    if (proxyEntityResponse == null) {
+      return null;
     }
-    throw new AssertionError();
+    if (proxyEntityResponse.getMessageType() == MessageType.ERROR) {
+      throw (EntityUserException) proxyEntityResponse.getResponse();
+    }
+    return proxyEntityResponse.getResponse();
   }
 
   private static class ProxiedInvokeFuture implements Future {
@@ -155,8 +194,10 @@ class VoltronProxyInvocationHandler implements InvocationHandler {
     @Override
     public Object get() throws InterruptedException, ExecutionException {
       try {
-        return future.get().getResponse();
+        return getResponse(future.get());
       } catch (EntityException e) {
+        throw new ExecutionException(e);
+      } catch (EntityUserException e) {
         throw new ExecutionException(e);
       }
     }
@@ -164,8 +205,10 @@ class VoltronProxyInvocationHandler implements InvocationHandler {
     @Override
     public Object get(final long timeout, final TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
       try {
-        return future.getWithTimeout(timeout, unit).getResponse();
+        return getResponse(future.getWithTimeout(timeout, unit));
       } catch (EntityException e) {
+        throw new ExecutionException(e);
+      } catch (EntityUserException e) {
         throw new ExecutionException(e);
       }
     }

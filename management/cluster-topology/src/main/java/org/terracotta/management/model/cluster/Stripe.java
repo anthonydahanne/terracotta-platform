@@ -17,9 +17,9 @@ package org.terracotta.management.model.cluster;
 
 import org.terracotta.management.model.context.Context;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -32,7 +32,7 @@ public final class Stripe extends AbstractNode<Cluster> {
 
   public static final String KEY = "stripeId";
 
-  private final Map<String, Server> servers = new HashMap<>();
+  private final Map<String, Server> servers = new TreeMap<>();
 
   private Stripe(String name) {
     super(name);
@@ -73,7 +73,15 @@ public final class Stripe extends AbstractNode<Cluster> {
   }
 
   public Optional<Server> getServer(Context context) {
-    return getServer(context.get(Server.KEY));
+    String key = context.get(Server.KEY);
+    if (key != null) {
+      return getServer(key);
+    }
+    String name = context.get(Server.NAME_KEY);
+    if (name != null) {
+      return getServerByName(name);
+    }
+    return Optional.empty();
   }
 
   public Optional<Server> getServer(String id) {
@@ -112,6 +120,10 @@ public final class Stripe extends AbstractNode<Cluster> {
     return getActiveServer().flatMap(s -> s.getServerEntity(context));
   }
 
+  public Optional<ServerEntity> getServerEntity(Context context) {
+    return getServer(context).flatMap(s -> s.getServerEntity(context));
+  }
+
   public Optional<ServerEntity> getActiveServerEntity(ServerEntityIdentifier identifier) {
     return getActiveServer().flatMap(s -> s.getServerEntity(identifier));
   }
@@ -132,7 +144,7 @@ public final class Stripe extends AbstractNode<Cluster> {
   public void remove() {
     Cluster parent = getParent();
     if (parent != null) {
-      parent.removeClient(getId());
+      parent.removeStripe(getId());
     }
   }
 

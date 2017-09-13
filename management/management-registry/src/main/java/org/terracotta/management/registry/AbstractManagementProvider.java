@@ -20,14 +20,12 @@ import org.terracotta.management.model.capabilities.Capability;
 import org.terracotta.management.model.capabilities.DefaultCapability;
 import org.terracotta.management.model.capabilities.context.CapabilityContext;
 import org.terracotta.management.model.capabilities.descriptors.Descriptor;
+import org.terracotta.management.model.capabilities.descriptors.StatisticDescriptor;
 import org.terracotta.management.model.context.Context;
-import org.terracotta.management.model.stats.Statistic;
-import org.terracotta.management.registry.action.ExposedObject;
-import org.terracotta.management.registry.action.Named;
-import org.terracotta.management.registry.action.RequiredContext;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Queue;
@@ -38,6 +36,13 @@ import java.util.concurrent.ExecutionException;
  * @author Mathieu Carbou
  */
 public abstract class AbstractManagementProvider<T> implements ManagementProvider<T> {
+
+  protected static final Comparator<StatisticDescriptor> STATISTIC_DESCRIPTOR_COMPARATOR = new Comparator<StatisticDescriptor>() {
+    @Override
+    public int compare(StatisticDescriptor o1, StatisticDescriptor o2) {
+      return o1.getName().compareTo(o2.getName());
+    }
+  };
 
   private final Queue<ExposedObject<T>> exposedObjects = new ConcurrentLinkedQueue<ExposedObject<T>>();
 
@@ -72,26 +77,21 @@ public abstract class AbstractManagementProvider<T> implements ManagementProvide
   }
 
   @Override
-  public ExposedObject<T> register(T managedObject) {
+  public void register(T managedObject) {
     ExposedObject<T> exposedObject = wrap(managedObject);
-    if(this.exposedObjects.add(exposedObject)) {
-      return exposedObject;
-    } else {
-      return null;
-    }
+    this.exposedObjects.add(exposedObject);
   }
 
   @Override
-  public ExposedObject<T> unregister(T managedObject) {
+  public void unregister(T managedObject) {
     for (ExposedObject<T> exposedObject : exposedObjects) {
       if (exposedObject.getTarget().equals(managedObject)) {
         if (this.exposedObjects.remove(exposedObject)) {
           dispose(exposedObject);
-          return exposedObject;
+          return;
         }
       }
     }
-    return null;
   }
 
   @Override
@@ -107,7 +107,7 @@ public abstract class AbstractManagementProvider<T> implements ManagementProvide
   }
 
   @Override
-  public Map<String, Statistic<?, ?>> collectStatistics(Context context, Collection<String> statisticNames, long since) {
+  public Map<String, Number> collectStatistics(Context context, Collection<String> statisticNames) {
     throw new UnsupportedOperationException("Not a statistics provider : " + getCapabilityName());
   }
 
@@ -123,7 +123,9 @@ public abstract class AbstractManagementProvider<T> implements ManagementProvide
 
   @SuppressWarnings("unchecked")
   @Override
-  public Collection<Descriptor> getDescriptors() {
+  public Collection<? extends Descriptor> getDescriptors() {
+    // LinkedHashSet to keep ordering because these objects end up in an immutable
+    // topology so this is easier for testing to compare with json payloads
     Collection<Descriptor> capabilities = new LinkedHashSet<Descriptor>();
     for (ExposedObject o : exposedObjects) {
       capabilities.addAll(((ExposedObject<T>) o).getDescriptors());
@@ -155,6 +157,7 @@ public abstract class AbstractManagementProvider<T> implements ManagementProvide
   protected void dispose(ExposedObject<T> exposedObject) {
   }
 
+  @Override
   public Collection<ExposedObject<T>> getExposedObjects() {
     return exposedObjects;
   }
@@ -173,7 +176,8 @@ public abstract class AbstractManagementProvider<T> implements ManagementProvide
     return null;
   }
 
-  protected ExposedObject<T> findExposedObject(T managedObject) {
+  @Override
+  public ExposedObject<T> findExposedObject(T managedObject) {
     for (ExposedObject<T> exposed : exposedObjects) {
       if (exposed.getTarget().equals(managedObject)) {
         return exposed;

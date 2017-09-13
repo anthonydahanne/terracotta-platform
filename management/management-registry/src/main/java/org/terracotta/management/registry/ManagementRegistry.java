@@ -15,10 +15,7 @@
  */
 package org.terracotta.management.registry;
 
-import org.terracotta.management.model.capabilities.Capability;
 import org.terracotta.management.model.context.ContextContainer;
-
-import java.util.Collection;
 
 /**
  * Repository of objects exposing capabilities via the management and monitoring facilities.
@@ -31,8 +28,9 @@ public interface ManagementRegistry extends CapabilityManagementSupport {
    * Adds to this registry a specific management provider for object types T
    *
    * @param provider The management provider instance
+   * @return false if the management provider name already exists
    */
-  void addManagementProvider(ManagementProvider<?> provider);
+  boolean addManagementProvider(ManagementProvider<?> provider);
 
   /**
    * Removes from this registry a specific management provider for object types T
@@ -45,24 +43,15 @@ public interface ManagementRegistry extends CapabilityManagementSupport {
    * Register an object in the management registry.
    *
    * @param managedObject the managed object.
-   * @return true if this object has been registered
    */
-  boolean register(Object managedObject);
+  void register(Object managedObject);
 
   /**
    * Unregister an object from the management registry.
    *
    * @param managedObject the managed object.
-   * @return true if this object has been unregistered
    */
-  boolean unregister(Object managedObject);
-
-  /**
-   * Get the management capabilities of the registered objects.
-   *
-   * @return a collection of capabilities.
-   */
-  Collection<Capability> getCapabilities();
+  void unregister(Object managedObject);
 
   /**
    * Get the management context required to make use of the

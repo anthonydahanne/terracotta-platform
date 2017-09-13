@@ -21,8 +21,6 @@ import org.terracotta.management.model.capabilities.DefaultCapability;
 import org.terracotta.management.model.capabilities.context.CapabilityContext;
 import org.terracotta.management.model.capabilities.descriptors.Descriptor;
 import org.terracotta.management.model.context.Context;
-import org.terracotta.management.model.stats.Statistic;
-import org.terracotta.management.registry.action.ExposedObject;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -49,8 +47,7 @@ public class ManagementProviderAdapter<T> implements ManagementProvider<T> {
   }
 
   @Override
-  public ExposedObject<T> register(Object managedObject) {
-    return null;
+  public void register(Object managedObject) {
   }
 
   @Override
@@ -58,8 +55,7 @@ public class ManagementProviderAdapter<T> implements ManagementProvider<T> {
   }
 
   @Override
-  public ExposedObject<T> unregister(Object managedObject) {
-    return null;
+  public void unregister(Object managedObject) {
   }
 
   @Override
@@ -78,7 +74,7 @@ public class ManagementProviderAdapter<T> implements ManagementProvider<T> {
   }
 
   @Override
-  public Map<String, Statistic<?, ?>> collectStatistics(Context context, Collection<String> statisticNames, long since) {
+  public Map<String, Number> collectStatistics(Context context, Collection<String> statisticNames) {
     throw new UnsupportedOperationException("Not a statistics provider : " + getCapabilityName());
   }
 
@@ -97,4 +93,13 @@ public class ManagementProviderAdapter<T> implements ManagementProvider<T> {
     return false;
   }
 
+  @Override
+  public Collection<ExposedObject<T>> getExposedObjects() {
+    return Collections.emptyList();
+  }
+
+  @Override
+  public ExposedObject<T> findExposedObject(T managedObject) {
+    return null;
+  }
 }

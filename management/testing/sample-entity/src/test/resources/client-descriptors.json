@@ -1,0 +1,170 @@
+[
+  {
+    "name": "CacheCalls",
+    "descriptors": [
+      {
+        "name": "clear",
+        "returnType": "void",
+        "parameters": []
+      },
+      {
+        "name": "get",
+        "returnType": "java.lang.String",
+        "parameters": [
+          {
+            "name": "key",
+            "type": "java.lang.String"
+          }
+        ]
+      },
+      {
+        "name": "put",
+        "returnType": "void",
+        "parameters": [
+          {
+            "name": "key",
+            "type": "java.lang.String"
+          },
+          {
+            "name": "value",
+            "type": "java.lang.String"
+          }
+        ]
+      },
+      {
+        "name": "size",
+        "returnType": "int",
+        "parameters": []
+      }
+    ],
+    "capabilityContext": {
+      "attributes": [
+        {
+          "name": "appName",
+          "required": true
+        },
+        {
+          "name": "cacheName",
+          "required": true
+        }
+      ]
+    }
+  },
+  {
+    "name": "CacheSettings",
+    "descriptors": [
+      {
+        "appName": "pet-clinic",
+        "cacheName": "pets",
+        "size": 0
+      },
+      {
+        "appName": "pet-clinic",
+        "cacheName": "clients",
+        "size": 0
+      }
+    ],
+    "capabilityContext": {
+      "attributes": [
+        {
+          "name": "appName",
+          "required": true
+        },
+        {
+          "name": "cacheName",
+          "required": true
+        }
+      ]
+    }
+  },
+  {
+    "name": "CacheStatistics",
+    "descriptors": [
+      {
+        "name": "Cache:ClearCount",
+        "type": "COUNTER"
+      },
+      {
+        "name": "Cache:HitCount",
+        "type": "COUNTER"
+      },
+      {
+        "name": "Cache:MissCount",
+        "type": "COUNTER"
+      },
+      {
+        "name": "ClientCache:Size",
+        "type": "SIZE"
+      }
+    ],
+    "capabilityContext": {
+      "attributes": [
+        {
+          "name": "appName",
+          "required": true
+        },
+        {
+          "name": "cacheName",
+          "required": true
+        }
+      ]
+    }
+  },
+  {
+    "name": "DiagnosticCalls",
+    "descriptors": [
+      {
+        "name": "getThreadDump",
+        "returnType": "java.lang.String",
+        "parameters": []
+      }
+    ],
+    "capabilityContext": {
+      "attributes": []
+    }
+  },
+  {
+    "name": "NmsAgentService",
+    "descriptors": [],
+    "capabilityContext": {
+      "attributes": []
+    }
+  },
+  {
+    "name": "StatisticCollectorCapability",
+    "descriptors": [
+      {
+        "name": "isRunning",
+        "returnType": "boolean",
+        "parameters": []
+      },
+      {
+        "name": "startStatisticCollector",
+        "returnType": "void",
+        "parameters": [
+          {
+            "name": "interval",
+            "type": "long"
+          },
+          {
+            "name": "unit",
+            "type": "java.util.concurrent.TimeUnit"
+          }
+        ]
+      },
+      {
+        "name": "stopStatisticCollector",
+        "returnType": "void",
+        "parameters": []
+      }
+    ],
+    "capabilityContext": {
+      "attributes": [
+        {
+          "name": "appName",
+          "required": true
+        }
+      ]
+    }
+  }
+]

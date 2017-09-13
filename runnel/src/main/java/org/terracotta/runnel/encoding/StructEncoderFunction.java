@@ -18,8 +18,8 @@ package org.terracotta.runnel.encoding;
 /**
  * @author Ludovic Orban
  */
-public interface StructEncoderFunction {
+public interface StructEncoderFunction<T> {
 
-  void encode(StructEncoder encoder);
+  void encode(StructEncoder<?> encoder, T value);
 
 }

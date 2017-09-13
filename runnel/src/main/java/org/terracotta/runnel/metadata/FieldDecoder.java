@@ -30,7 +30,7 @@ import org.terracotta.runnel.utils.ReadBuffer;
 public class FieldDecoder {
 
   private final Metadata metadata;
-  private ReadBuffer readBuffer;
+  private final ReadBuffer readBuffer;
   private int lastIndex = -1;
   private int readAheadIndex = -1;
 
@@ -39,28 +39,28 @@ public class FieldDecoder {
     this.readBuffer = readBuffer;
   }
 
-  public StructArrayDecoder decodeStructArray(String name, StructDecoder parent) {
+  public <P> StructArrayDecoder<P> decodeStructArray(String name, P parent) {
     ArrayField field = nextField(name, ArrayField.class, StructField.class);
     if (field == null) {
       return null;
     }
-    return new StructArrayDecoder(((StructField) field.subField()), readBuffer, parent);
+    return new StructArrayDecoder<P>(((StructField) field.subField()), readBuffer, parent);
   }
 
-  public StructDecoder decodeStruct(String name, StructDecoder parent) {
+  public <P> StructDecoder<P> decodeStruct(String name, P parent) {
     StructField field = nextField(name, StructField.class, null);
     if (field == null) {
       return null;
     }
-    return new StructDecoder(field, readBuffer, parent);
+    return new StructDecoder<P>(field, readBuffer, parent);
   }
 
-  public <T> ArrayDecoder<T> decodeValueArray(String name, Class<? extends ValueField<T>> clazz, StructDecoder parent) {
+  public <T, P> ArrayDecoder<T, P> decodeValueArray(String name, Class<? extends ValueField<T>> clazz, P parent) {
     ArrayField field = nextField(name, ArrayField.class, clazz);
     if (field == null) {
       return null;
     }
-    return new ArrayDecoder<T>((ValueField<T>) field.subField(), readBuffer, parent);
+    return new ArrayDecoder<T, P>((ValueField<T>) field.subField(), readBuffer, parent);
   }
 
   public <T> T decodeValue(String name, Class<? extends ValueField<T>> clazz) {
@@ -69,12 +69,6 @@ public class FieldDecoder {
       return null;
     }
     return field.decode(readBuffer);
-  }
-
-
-  public void reset(ReadBuffer readBuffer) {
-    this.lastIndex = -1;
-    this.readBuffer = readBuffer;
   }
 
   private  <T extends Field, S extends Field> T nextField(String name, Class<T> fieldClazz, Class<S> subFieldClazz) {

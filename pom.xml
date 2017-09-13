@@ -21,15 +21,19 @@
 
   <groupId>org.terracotta</groupId>
   <artifactId>platform-root</artifactId>
-  <version>5.0-SNAPSHOT</version>
+  <version>5.3-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <properties>
+    <maven.version>3.2.5</maven.version>
     <maven-forge-plugin.version>1.2.16</maven-forge-plugin.version>
     <slf4j.version>1.7.7</slf4j.version>
-    <terracotta-apis.version>1.0.9.beta</terracotta-apis.version>
-    <tcconfig.version>10.0.9.beta2</tcconfig.version>
-    <passthrough-testing.version>1.0.9.beta2</passthrough-testing.version>
+    <logback.version>1.1.3</logback.version>
+    <terracotta-apis.version>1.3.1</terracotta-apis.version>
+    <terracotta-configuration.version>10.3.1</terracotta-configuration.version>
+    <passthrough-testing.version>1.3.1</passthrough-testing.version>
+    <terracotta-core.version>5.3.4</terracotta-core.version>
+    <statistics.version>1.4.3</statistics.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <java.version>1.6</java.version>
@@ -42,10 +46,12 @@
     <module>concurrent-map-entity/client</module>
     <module>concurrent-map-entity/server</module>
     <module>concurrent-map-entity/integration-tests</module>
-    <module>client-communicator-support</module>
+    <module>communicator-support</module>
     <module>healthchecker-entity</module>
-    <module>management</module>
+    <module>lease</module>
     <module>runnel</module>
+    <module>management</module>
+    <module>client-message-tracker</module>
   </modules>
 
   <dependencyManagement>
@@ -73,7 +79,7 @@
       <dependency>
         <groupId>org.terracotta.internal</groupId>
         <artifactId>tc-config-parser</artifactId>
-        <version>${tcconfig.version}</version>
+        <version>${terracotta-configuration.version}</version>
       </dependency>
       <dependency>
         <groupId>org.terracotta</groupId>
@@ -174,8 +180,16 @@
               <!-- if you only import management in your ide, it will generate its metadata under management/ -->
               <exclude>**/.idea/**</exclude>
               <exclude>**/nbproject/**</exclude>
+              <exclude>**/*.adoc</exclude>
+              <exclude>mvnw</exclude>
+              <exclude>mvnw.cmd</exclude>
             </excludes>
           </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.jvnet.jaxb2.maven2</groupId>
+          <artifactId>maven-jaxb2-plugin</artifactId>
+          <version>0.12.3</version>
         </plugin>
       </plugins>
     </pluginManagement>
@@ -240,14 +254,36 @@
           </execution>
         </executions>
       </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <version>1.4.1</version>
+        <executions>
+          <execution>
+            <id>enforce-java</id>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <dependencyConvergence>
+                  <uniqueVersions>false</uniqueVersions>
+                </dependencyConvergence>
+                <requireJavaVersion>
+                  <version>[${java.version},)</version>
+                </requireJavaVersion>
+                <requireMavenVersion>
+                  <version>[${maven.version}]</version>
+                </requireMavenVersion>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
 
   <repositories>
-    <repository>
-      <id>terracotta-snapshots</id>
-      <url>http://www.terracotta.org/download/reflector/snapshots</url>
-    </repository>
     <repository>
       <id>terracotta-releases</id>
       <url>http://www.terracotta.org/download/reflector/releases</url>

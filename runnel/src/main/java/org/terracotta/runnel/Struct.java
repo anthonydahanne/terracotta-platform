@@ -23,32 +23,56 @@ import org.terracotta.runnel.utils.ReadBuffer;
 
 import java.io.PrintStream;
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.Map;
 
 /**
  * @author Ludovic Orban
  */
 public class Struct {
+
   private final StructField root;
 
   public Struct(StructField root) {
     this.root = root;
   }
 
-  List<? extends Field> getRootSubFields() {
-    return root.subFields();
+  StructField alias(String name, int index) {
+    return root.alias(name, index);
   }
 
-  public StructEncoder encoder() {
-    return new StructEncoder(root);
+  void init() {
+    root.init();
   }
 
-  public StructDecoder decoder(ByteBuffer byteBuffer) {
-    return new StructDecoder(root, new ReadBuffer(byteBuffer));
+  /**
+   * Create a non-thread safe encoder allowing encoding according to the present structure.
+   * Note: this method is thread-safe.
+   * @return the encoder.
+   */
+  public StructEncoder<Void> encoder() {
+    root.checkFullyInitialized();
+    return new StructEncoder<Void>(root);
   }
 
+  /**
+   * Create a non-thread safe decoder allowing decoding according to the present structure.
+   * Note: this method is thread-safe.
+   * @param byteBuffer the byte buffer containing the data to be decoded.
+   * @return the decoder.
+   */
+  public StructDecoder<Void> decoder(ByteBuffer byteBuffer) {
+    root.checkFullyInitialized();
+    return new StructDecoder<Void>(root, new ReadBuffer(byteBuffer));
+  }
+
+  /**
+   * Recursively decode a byte buffer according to the present structure and print the decoded outcome to a print stream.
+   * Note: this method is thread-safe.
+   * @param byteBuffer the byte buffer containing the data to be dumped.
+   * @param out the print stream to print to.
+   */
   public void dump(ByteBuffer byteBuffer, PrintStream out) {
+    root.checkFullyInitialized();
     Map<Integer, Field> fieldsByInteger = root.getMetadata().buildFieldsByIndexMap();
 
     ReadBuffer readBuffer = new ReadBuffer(byteBuffer);

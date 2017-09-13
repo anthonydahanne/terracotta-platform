@@ -16,8 +16,10 @@
 package org.terracotta.runnel.metadata;
 
 import org.terracotta.runnel.decoding.fields.Field;
+import org.terracotta.runnel.decoding.fields.StructField;
 import org.terracotta.runnel.utils.ReadBuffer;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,17 +29,56 @@ import java.util.Map;
  */
 public class Metadata {
 
-  private final Map<String, Field> fieldsByName;
+  private final List<Field> fields = new ArrayList<Field>();
+  private final Map<String, Field> fieldsByName = new HashMap<String, Field>();
+  private volatile boolean initialized = false;
+  private volatile boolean initializationFullyChecked = false;
+  private final ThreadLocal<Boolean> checkingForFullInitialization = new ThreadLocal<Boolean>();
 
-  public Metadata(List<? extends Field> metadata) {
-    fieldsByName = new HashMap<String, Field>();
-    for (Field field : metadata) {
+  public Metadata() {
+  }
+
+  public void addField(Field field) {
+    if (initialized) {
+      throw new IllegalStateException("Metadata already initialized");
+    }
+    fields.add(field);
+  }
+
+  public void init() {
+    if (initialized) {
+      throw new IllegalStateException("Metadata already initialized");
+    }
+    for (Field field : fields) {
       fieldsByName.put(field.name(), field);
     }
+    initialized = true;
   }
 
   public FieldSearcher fieldSearcher() {
     return new FieldSearcher(this);
+  }
+
+  public void checkFullyInitialized() throws IllegalStateException {
+    if (initializationFullyChecked || Boolean.TRUE.equals(checkingForFullInitialization.get())) {
+      return; // already visited this graph vertex, or graph already fully checked
+    }
+
+    if (!initialized) {
+      throw new IllegalStateException("Metadata not yet initialized");
+    }
+
+    checkingForFullInitialization.set(Boolean.TRUE); // save the fact that the check has been performed on this vertex
+    try {
+      for (Field field : fields) {
+        if (field instanceof StructField) {
+          ((StructField) field).getMetadata().checkFullyInitialized();
+        }
+      }
+      initializationFullyChecked = true;
+    } finally {
+      checkingForFullInitialization.remove();
+    }
   }
 
   public FieldDecoder fieldDecoder(ReadBuffer readBuffer) {

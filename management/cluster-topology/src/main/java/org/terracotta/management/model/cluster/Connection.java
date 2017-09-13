@@ -15,11 +15,10 @@
  */
 package org.terracotta.management.model.cluster;
 
-
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.stream.Stream;
 
 /**
@@ -31,7 +30,9 @@ public final class Connection extends AbstractNode<Client> {
 
   public static final String KEY = "connectionId";
 
-  private final Map<String, Long> serverEntityIds = new LinkedHashMap<>();
+  // There is no validation done on the content of this field, except when using #fetchedServerEntityStream and #getFetchedServerEntityCount.
+  // So at other places where this map is used, you could see wrong values (i.e. it is possible to add a entity if that is not in the topology)
+  private final Map<String, Long> serverEntityIds = new TreeMap<>();
   private final Endpoint clientEndpoint;
   private final String stripeId;
   private final String serverId;
@@ -111,29 +112,25 @@ public final class Connection extends AbstractNode<Client> {
   public boolean equals(Object o) {
     if (this == o) return true;
     if (o == null || getClass() != o.getClass()) return false;
-    // we do not consider super because it would include the connection id in the hashcode, which is not "predictatable"
-    // and can be different whether we opened/closed several connections in our different tests
-    //if (!super.equals(o)) return false;
+    if (!super.equals(o)) return false;
 
     Connection that = (Connection) o;
 
     if (!serverEntityIds.equals(that.serverEntityIds)) return false;
     if (!clientEndpoint.equals(that.clientEndpoint)) return false;
-    if (stripeId != null ? !stripeId.equals(that.stripeId) : that.stripeId != null) return false;
-    return serverId != null ? serverId.equals(that.serverId) : that.serverId == null;
-
+    if (!stripeId.equals(that.stripeId)) return false;
+    if (!serverId.equals(that.serverId)) return false;
+    return logicalConnectionUid.equals(that.logicalConnectionUid);
   }
 
   @Override
   public int hashCode() {
-    // we do not consider super because it would include the connection id in the hashcode, which is not "predictatable"
-    // and can be different whether we opened/closed several connections in our different tests
-    //int result = super.hashCode();
-    int result = 0;
+    int result = super.hashCode();
     result = 31 * result + serverEntityIds.hashCode();
     result = 31 * result + clientEndpoint.hashCode();
-    result = 31 * result + (stripeId != null ? stripeId.hashCode() : 0);
-    result = 31 * result + (serverId != null ? serverId.hashCode() : 0);
+    result = 31 * result + stripeId.hashCode();
+    result = 31 * result + serverId.hashCode();
+    result = 31 * result + logicalConnectionUid.hashCode();
     return result;
   }
 
@@ -175,20 +172,9 @@ public final class Connection extends AbstractNode<Client> {
   }
 
   public boolean fetchServerEntity(ServerEntityIdentifier serverEntityIdentifier) {
-    if (!isConnected()) {
-      throw new IllegalStateException("not connnected");
-    }
     String id = serverEntityIdentifier.getId();
-    if (!getServer().flatMap(server -> server.getServerEntity(serverEntityIdentifier)).isPresent()) {
-      serverEntityIds.remove(id);
-      return false;
-    }
     Long count = serverEntityIds.get(id);
-    if (count == null || count <= 0) {
-      serverEntityIds.put(id, 1L);
-      return true;
-    }
-    serverEntityIds.put(id, count + 1);
+    serverEntityIds.put(id, count == null || count <= 0 ? 1L : count + 1);
     return true;
   }
 
@@ -197,7 +183,7 @@ public final class Connection extends AbstractNode<Client> {
   }
 
   public boolean hasFetchedServerEntity(ServerEntityIdentifier serverEntityIdentifier) {
-    return fetchedServerEntityStream().filter(serverEntity -> serverEntity.is(serverEntityIdentifier)).findFirst().isPresent();
+    return fetchedServerEntityStream().anyMatch(serverEntity -> serverEntity.is(serverEntityIdentifier));
   }
 
   public boolean isConnectedTo(Server server) {

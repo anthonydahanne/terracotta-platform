@@ -15,17 +15,26 @@
  */
 package org.terracotta.management.registry.collect;
 
+import org.terracotta.management.model.stats.ContextualStatistics;
+
 import java.util.Collection;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author Mathieu Carbou
  */
 public interface StatisticCollector {
 
-  void startStatisticCollector();
+  /**
+   * Starts the statistic collector, or, if already started, reschedule it with the new given settings if they have changed.
+   */
+  void startStatisticCollector(long interval, TimeUnit unit);
 
   void stopStatisticCollector();
 
-  void updateCollectedStatistics(String capabilityName, Collection<String> statisticNames);
-
+  boolean isRunning();
+  
+  interface Collector {
+    void onStatistics(Collection<ContextualStatistics> statistics);
+  }
 }

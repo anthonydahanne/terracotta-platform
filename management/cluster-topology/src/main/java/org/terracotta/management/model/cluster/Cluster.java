@@ -18,6 +18,7 @@ package org.terracotta.management.model.cluster;
 import org.terracotta.management.model.context.Context;
 import org.terracotta.management.model.context.Contextual;
 
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -35,12 +37,16 @@ public final class Cluster implements Contextual {
 
   private static final long serialVersionUID = 2;
 
-  private final Map<String, Client> clients = new HashMap<>();
-  private final Map<String, Stripe> stripes = new HashMap<>();
+  private final Map<String, Client> clients = new TreeMap<>();
+  private final Map<String, Stripe> stripes = new TreeMap<>();
 
   private Cluster() {
   }
 
+  public boolean isEmpty() {
+    return stripes.isEmpty();
+  }
+  
   public Stream<Client> clientStream() {
     return clients.values().stream();
   }
@@ -139,6 +145,10 @@ public final class Cluster implements Contextual {
     return getStripe(context).flatMap(s -> s.getActiveServerEntity(context));
   }
 
+  public Optional<ServerEntity> getServerEntity(Context context) {
+    return getStripe(context).flatMap(s -> s.getServerEntity(context));
+  }
+
   public Optional<Server> getServer(Context context) {
     return getStripe(context).flatMap(s -> s.getServer(context));
   }
@@ -213,8 +223,8 @@ public final class Cluster implements Contextual {
 
   public Map<String, Object> toMap() {
     Map<String, Object> map = new LinkedHashMap<String, Object>();
-    map.put("stripes", stripeStream().sorted((o1, o2) -> o1.getId().compareTo(o2.getId())).map(Stripe::toMap).collect(Collectors.toList()));
-    map.put("clients", clientStream().sorted((o1, o2) -> o1.getId().compareTo(o2.getId())).map(Client::toMap).collect(Collectors.toList()));
+    map.put("stripes", stripeStream().sorted(Comparator.comparing(AbstractNode::getId)).map(Stripe::toMap).collect(Collectors.toList()));
+    map.put("clients", clientStream().sorted(Comparator.comparing(AbstractNode::getId)).map(Client::toMap).collect(Collectors.toList()));
     return map;
   }
 

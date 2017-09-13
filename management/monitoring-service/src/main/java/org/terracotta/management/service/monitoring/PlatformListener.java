@@ -26,7 +26,7 @@ import org.terracotta.monitoring.ServerState;
  * <p>
  * This is only ever called by the consumerID 0 instance.
  */
-public interface PlatformListener {
+interface PlatformListener {
 
   void serverDidBecomeActive(PlatformServer self);
 
@@ -36,13 +36,15 @@ public interface PlatformListener {
 
   void serverEntityCreated(PlatformServer sender, PlatformEntity entity);
 
+  void serverEntityReconfigured(PlatformServer sender, PlatformEntity entity);
+
   void serverEntityDestroyed(PlatformServer sender, PlatformEntity entity);
 
   void serverStateChanged(PlatformServer sender, ServerState state);
 
-  void clientConnected(PlatformConnectedClient client);
+  void clientConnected(PlatformServer currentActive, PlatformConnectedClient client);
 
-  void clientDisconnected(PlatformConnectedClient client);
+  void clientDisconnected(PlatformServer currentActive, PlatformConnectedClient client);
 
   void clientFetch(PlatformConnectedClient client, PlatformEntity entity, ClientDescriptor clientDescriptor);
 
