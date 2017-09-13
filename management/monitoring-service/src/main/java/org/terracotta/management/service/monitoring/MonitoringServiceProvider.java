@@ -160,7 +160,7 @@ public class MonitoringServiceProvider implements ServiceProvider, Closeable {
       return serviceType.cast(new ManageableServerComponent() {
         @Override
         public void onManagementRegistryCreated(EntityManagementRegistry registry) {
-          LOGGER.trace("[{}] onManagementRegistryCreated({})", registry.getMonitoringService().getConsumerId());
+          LOGGER.trace("[{}] onManagementRegistryCreated()", registry.getMonitoringService().getConsumerId());
 
           // The context for the collector is created from the the registry of the entity wanting server-side providers.
           // We create a provider that will receive management calls to control the global voltron's statistic collector.
